@@ -4,7 +4,7 @@ A static, single-file dashboard (vanilla JS and Plotly.js, no build step) showin
 greenhouse-gas emissions across all 26 sources: on-farm, land-use change, pre/post-production
 and waste. It covers 199 producing countries and 2010–2023. Most views are production-based;
 the trade views compare production with consumption and follow embodied emissions through
-international trade. Deployed at <https://kushankb.github.io/food-systems-emissions/>.
+international trade. Deployed at <https://kushankbajaj.com/food-systems-emissions/>.
 
 > **Preliminary.** The data is from pipeline outputs dated 2026-04-30, before the land-use
 > re-run, the July livestock residual fixes and the September Kastner commodity-mapping fixes.
@@ -87,7 +87,7 @@ the repo root to GitHub Pages. All fetches use relative paths, so the site works
 
 ## Known limitations
 
-- **Food groups are wrong for about 16% of emissions.** Keyword matching is checked in order, so
+- **Food groups are wrong (also stated in the page banner) for about 16% of emissions.** Keyword matching is checked in order, so
   "Raw milk of cattle" matches *cattle* and lands in Beef & Buffalo (12% of the global total), as does
   buffalo milk (2.4%). "Raw milk of goats" matches *oat* and lands in Cereals. Pears and peaches match
   *pea* and land in Pulses. Eggplants match *egg* and land in Dairy & Eggs. Soya beans (8.6%) and cocoa
