@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Food Systems Emissions</title>
+<meta name="description" content="Production- and consumption-based agrifood emissions by source, commodity and trade flow, 2010 onward. Preliminary.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js"></script>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --raised:#1c2128; --border:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --prod:#58a6ff; --cons:#f78166;
+    --warn-bg:#3b2300; --warn-border:#9e6a03; --warn-text:#f2cc60;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Inter','Segoe UI',sans-serif; font-size:13px; }
+  header { padding:22px 40px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
+  header .bar { width:5px; height:30px; border-radius:3px; background:linear-gradient(180deg,var(--prod),var(--cons)); flex:none; }
+  h1 { margin:0; font-size:21px; font-weight:700; letter-spacing:-0.02em; }
+  .sub { margin:3px 0 0; color:var(--muted); font-size:11px; }
+  .banner { margin:16px 40px 0; padding:12px 16px; border:1px solid var(--warn-border); background:var(--warn-bg);
+            color:var(--warn-text); border-radius:10px; font-size:12px; line-height:1.5; }
+  .banner b { color:#ffdf8a; }
+  .banner details summary { cursor:pointer; margin-top:4px; color:var(--warn-text); }
+  .banner ul { margin:6px 0 0; padding-left:18px; }
+  main { padding:18px 40px; display:flex; flex-direction:column; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; min-width:0; }
+  .label { color:var(--muted); font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; margin:0 0 6px; }
+  .note { margin:0; color:var(--muted); font-size:11px; }
+  .controls { display:grid; grid-template-columns:2.5fr 2fr 1fr 1fr 1fr; gap:20px; align-items:end; }
+  select { width:100%; background:var(--raised); color:var(--text); border:1px solid var(--border); border-radius:8px;
+           padding:8px 10px; font:inherit; }
+  select:focus, input:focus-visible, button:focus-visible { outline:2px solid var(--prod); outline-offset:1px; }
+  .range { display:flex; align-items:center; gap:8px; }
+  .range span { color:var(--text); font-weight:600; min-width:34px; text-align:center; }
+  .dual { position:relative; flex:1; height:24px; }
+  .dual input { position:absolute; inset:0; width:100%; margin:0; background:none; pointer-events:none; -webkit-appearance:none; appearance:none; }
+  .dual input::-webkit-slider-thumb { pointer-events:auto; -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--prod); cursor:pointer; position:relative; z-index:2; }
+  .dual input::-moz-range-thumb { pointer-events:auto; width:14px; height:14px; border:none; border-radius:50%; background:var(--prod); cursor:pointer; }
+  .dual .track { position:absolute; top:10px; left:0; right:0; height:4px; background:var(--border); border-radius:2px; }
+  .dual .fill { position:absolute; top:10px; height:4px; background:var(--prod); border-radius:2px; }
+  .kpi { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:8px 4px; border-left:1px solid var(--border); }
+  .kpi .v { font-size:22px; font-weight:700; color:var(--prod); letter-spacing:-0.02em; }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); overflow-x:auto; }
+  .tabs button { background:var(--surface); color:var(--muted); border:1px solid var(--border); border-bottom:none;
+                 border-radius:8px 8px 0 0; padding:10px 22px; font:inherit; font-weight:500; cursor:pointer; white-space:nowrap; }
+  .tabs button[aria-selected="true"] { background:var(--bg); color:var(--text); border-top:2px solid var(--prod); font-weight:600; }
+  .panel { display:flex; flex-direction:column; gap:20px; }
+  .row2 { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+  .head { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .inline { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .pill { background:#1f3a5f; color:var(--prod); font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px; border:1px solid #2d5a9b; margin-left:8px; }
+  .chart { width:100%; }
+  [hidden] { display:none !important; }
+  footer { padding:12px 40px; border-top:1px solid var(--border); color:var(--muted); font-size:11px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .loading { color:var(--muted); padding:40px; text-align:center; }
+  @media (max-width: 900px) {
+    header, main, footer { padding-left:16px; padding-right:16px; }
+    .banner { margin:12px 16px 0; }
+    .controls, .row2 { grid-template-columns:1fr; }
+    .kpi { border-left:none; border-top:1px solid var(--border); }
+    .card { padding:14px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar"></div>
+  <div>
+    <h1>Food Systems Emissions</h1>
+    <p class="sub" id="subtitle">Loading…</p>
+  </div>
+</header>
+
+<div class="banner" role="note">
+  <b>Preliminary data. Do not cite.</b> These figures come from pipeline outputs dated <span id="vintage">April 2026</span>,
+  built before several corrections were applied. Totals and source shares will change when the tables are regenerated.
+  <details>
+    <summary>What is known to be out of date</summary>
+    <ul>
+      <li>Land-use attribution has not been re-run since April; a pasture-to-livestock step was later found to fail when run end to end.</li>
+      <li>Livestock residual fixes from July 2026 (camel, duck, turkey, horse, mule, ass, llama mapped to real commodities) are not reflected.</li>
+      <li>Commodity-mapping bugs in the trade layer found in September 2026 (including sugar mapped to fish) affect the consumption side and the trade flows.</li>
+      <li>Food groups are assigned by keyword and are wrong for about 16% of emissions: cattle and buffalo milk are counted under Beef &amp; Buffalo, goat milk under Cereals, and pears and peaches under Pulses. Dairy &amp; Eggs is understated as a result.</li>
+      <li>Food transport is a bottom-up estimate (about 175% of the FAOSTAT figure), on a different accounting basis from the other sources.</li>
+    </ul>
+  </details>
+</div>
+
+<main>
+  <section class="card controls" aria-label="Filters">
+    <div>
+      <p class="label">Year range</p>
+      <div class="range">
+        <span id="y0lab"></span>
+        <div class="dual"><div class="track"></div><div class="fill" id="yfill"></div>
+          <input type="range" id="y0" aria-label="Start year"><input type="range" id="y1" aria-label="End year"></div>
+        <span id="y1lab"></span>
+      </div>
+    </div>
+    <div><p class="label">Country</p><select id="country"></select></div>
+    <div><p class="label">Food group</p><select id="group"></select></div>
+    <div><p class="label">Emission source</p><select id="source"></select></div>
+    <div class="kpi"><p class="label" style="margin:0">Production emissions</p><div class="v" id="kpi">–</div><p class="note" id="kpisub"></p></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="sources" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="foodgroups" aria-selected="false">Food Groups</button>
+    <button role="tab" data-tab="trade" aria-selected="false">Trade &amp; Shift</button>
+  </nav>
+
+  <div class="panel" id="tab-sources">
+    <div class="row2">
+      <div class="card"><p class="label">Production emissions over time by source · Mt CO₂e / yr</p><div id="src-area" class="chart" style="height:400px"></div></div>
+      <div class="card"><p class="label">Source mix · share of annual average</p><div id="src-donut" class="chart" style="height:400px"></div></div>
+    </div>
+    <div class="card">
+      <div class="head">
+        <div><p class="label">Emission flow · source → gas → commodity group</p>
+          <p class="note">How emission sources decompose into greenhouse gases and which commodity groups drive them. Single year; ignores the group filter. Top 12 sources, top 10 groups.</p></div>
+        <div class="inline">
+          <div><p class="label">Country</p><select id="sk1-country" style="width:200px"></select></div>
+          <div><p class="label">Year</p><select id="sk1-year" style="width:95px"></select></div>
+        </div>
+      </div>
+      <div id="src-sankey" class="chart" style="height:480px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="tab-foodgroups" hidden>
+    <div class="card"><p class="label">Top 20 commodities · annual average Mt CO₂e by emission source</p><div id="fg-stacked" class="chart" style="height:560px"></div></div>
+    <div class="card"><p class="label">Production emission intensity · kg CO₂e / kg food · top 20 by total intensity</p>
+      <p class="note" style="margin-bottom:10px">Commodities with under 1,000 t of production in the window are excluded. Ignores the food-group filter.</p>
+      <div id="fg-intensity" class="chart" style="height:520px"></div></div>
+  </div>
+
+  <div class="panel" id="tab-trade" hidden>
+    <div class="card">
+      <p class="label">Net emission shift by country · production − consumption · annual average Mt CO₂e</p>
+      <p class="note" style="margin-bottom:10px">Positive = net exporter of embodied emissions · negative = net importer. Top 15 each way, countries above 0.5 Mt/yr on either side. Ignores the country filter.</p>
+      <div id="trade-shift" class="chart" style="height:460px"></div>
+    </div>
+    <div class="card">
+      <div class="head">
+        <div><p class="label">Embodied emissions flow · producer → commodity → consumer<span class="pill">all agrifood sources</span></p>
+          <p class="note">International trade only, averaged over the selected year range. Top N commodities, top 12 producers and top 12 consumers. Ignores the group and source filters.</p></div>
+        <div class="inline">
+          <div><p class="label">Focus consumer</p><select id="sk2-country" style="width:230px"></select></div>
+          <div><p class="label">Top N commodities: <span id="topn-lab">8</span></p><input type="range" id="sk2-topn" min="3" max="15" value="8" style="width:140px"></div>
+        </div>
+      </div>
+      <div id="trade-sankey" class="chart" style="height:520px"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>FAO food systems emissions · GWP100 (IPCC AR5: CH₄ = 25, N₂O = 298) · production-based unless stated</span>
+  <span id="foot"></span>
+</footer>
+
+<script>
+const SOURCE_COLORS = {
+  "Synthetic fertilizers":"#58a6ff","Crop residues":"#3fb950","Burning-crop residues":"#e3b341","Rice cultivation":"#79c0ff",
+  "Enteric fermentation":"#f78166","Manure management":"#d2a8ff","Manure applied to soils":"#ffa657","Manure left on pasture":"#56d364",
+  "Land-use: Net forest conversion":"#ff7b72","Land-use: Fire emissions":"#bc8cff","Land-use: Drainage cropland":"#7ee787",
+  "Land-use: Drainage grassland":"#a5d6ff","Fertilizer manufacturing":"#ffb3a7","Pesticide manufacturing":"#cff281","Energy use":"#ffd8b2",
+  "Processing":"#94a3b8","Packaging":"#64748b","Food transport":"#b45309","Retail":"#0284c7","Cold chain F-gas":"#14b8a6",
+  "Household consumption":"#ec4899","Solid food waste":"#8b5cf6","Incineration":"#6b7280","Industrial wastewater":"#059669",
+  "Domestic wastewater":"#d97706","Agrifood systems waste":"#dc2626",
+};
+const GAS_COLORS = {"CO2":"#f78166","CH4":"#d2a8ff","N2O":"#ffa657","CH4 / N2O":"#79c0ff","CO2 / CH4 / N2O":"#ff7b72",
+  "CO2 / N2O":"#e3b341","CO2 / CH4":"#bc8cff","F-gases":"#56d364"};
+const GROUP_COLORS = {"Cereals":"#58a6ff","Pulses":"#3fb950","Oilseeds & Oils":"#e3b341","Beef & Buffalo":"#f78166","Poultry":"#ffa657",
+  "Other Meat":"#d2a8ff","Dairy & Eggs":"#79c0ff","Fruits":"#56d364","Vegetables":"#7ee787","Sugar":"#ff7b72","Other":"#8b949e"};
+const COMM_PAL = ["#58a6ff","#3fb950","#e3b341","#f78166","#d2a8ff","#ffa657","#79c0ff","#56d364","#ff7b72","#bc8cff",
+  "#7ee787","#a5d6ff","#ffb3a7","#cff281","#ffd8b2"];
+const TEXT = "#e6edf3", MUTED = "#8b949e", BORDER = "#30363d", PROD_C = "#58a6ff", CONS_C = "#f78166";
+
+const $ = id => document.getElementById(id);
+const narrow = () => window.innerWidth < 900;
+const rgba = (h, a) => { h = h.replace("#",""); return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`; };
+const fmtMt = mt => mt >= 1000 ? `${(mt/1000).toFixed(1)} Gt` : mt >= 1 ? `${mt.toFixed(1)} Mt` : `${(mt*1000).toFixed(0)} kt`;
+const sumBy = (rows, key, val) => { const m = new Map(); for (const r of rows) { const k = key(r); m.set(k, (m.get(k) || 0) + val(r)); } return m; };
+const topKeys = (m, n) => [...m.entries()].sort((a,b) => b[1]-a[1]).slice(0, n).map(e => e[0]);
+
+let META, S = { tab:"sources", y0:0, y1:0, country:"GLOBAL", group:"ALL", source:"ALL", sk1c:"GLOBAL", sk1y:0, sk2c:"GLOBAL", topn:8 };
+const cache = {};
+const fetchJSON = async p => { if (!cache[p]) cache[p] = fetch(p).then(r => { if (!r.ok) throw new Error(p); return r.json(); }); return cache[p]; };
+const prodCube = iso => fetchJSON(`data/prod/${iso}.json`);
+const cname = iso => { const c = META.countries[META.cIdx[iso]]; return c && c.name !== iso ? `${c.name} (${iso})` : iso; };
+
+function layout(extra = {}) {
+  const base = {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{family:"Inter, Segoe UI, sans-serif", color:TEXT, size:12},
+    xaxis:{gridcolor:BORDER, zerolinecolor:BORDER, tickfont:{color:MUTED}},
+    yaxis:{gridcolor:BORDER, zerolinecolor:BORDER, tickfont:{color:MUTED}},
+    legend:{bgcolor:"rgba(0,0,0,0)", font:{size:9}},
+    hoverlabel:{bgcolor:"#1c2128", bordercolor:PROD_C, font:{color:TEXT, size:12}},
+    margin:{l:50, r:20, t:20, b:50},
+  };
+  return deepMerge(base, extra);
+}
+function deepMerge(a, b) { for (const k in b) a[k] = (b[k] && typeof b[k] === "object" && !Array.isArray(b[k]) && a[k]) ? deepMerge({...a[k]}, b[k]) : b[k]; return a; }
+// Legend on the right on wide screens, below the plot on phones.
+const sideLegend = (r) => narrow() ? { legend:{orientation:"h", x:0, y:-0.18, font:{size:9}}, margin:{r:10, b:140} }
+                                    : { legend:{orientation:"v", x:1.02, y:1, font:{size:9}, tracegroupgap:2}, margin:{r} };
+const CFG = { displayModeBar:false, responsive:true };
+function plot(id, data, lay) { Plotly.react(id, data, lay, CFG); }
+function empty(id, msg = "No data for this selection") {
+  Plotly.react(id, [], { paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", xaxis:{visible:false}, yaxis:{visible:false},
+    margin:{l:0,r:0,t:0,b:0}, annotations:[{text:msg, xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{size:14, color:MUTED}}] }, CFG);
+}
+
+// Rows of a production cube matching the shared filters. em row = [yearIdx, item, source, kt]
+function filterEm(cube, { group = S.group, source = S.source, y0 = S.y0, y1 = S.y1 } = {}) {
+  const a = y0 - META.yearMin, b = y1 - META.yearMin, gi = group === "ALL" ? -1 : META.groups.indexOf(group), si = source === "ALL" ? -1 : META.sIdx[source];
+  return cube.em.filter(r => r[0] >= a && r[0] <= b && (gi < 0 || META.items[r[1]].g === gi) && (si < 0 || r[2] === si));
+}
+const nYears = () => S.y1 - S.y0 + 1;
+
+// ── Overview ────────────────────────────────────────────────────────────────
+async function drawSources() {
+  const cube = await prodCube(S.country), rows = filterEm(cube), ny = nYears();
+  const total = rows.reduce((s, r) => s + r[3], 0) / 1000 / ny;
+  $("kpi").textContent = fmtMt(total); $("kpisub").textContent = `annual avg · ${S.y0}–${S.y1}`;
+  if (!rows.length) { empty("src-area"); empty("src-donut"); }
+  else {
+    const bySrc = sumBy(rows, r => r[2], r => r[3]), order = topKeys(bySrc, 99);
+    const byYS = sumBy(rows, r => r[0] * 100 + r[2], r => r[3]);
+    const traces = order.slice().reverse().map(s => {
+      const name = META.sources[s].name, col = SOURCE_COLORS[name] || MUTED, xs = [], ys = [];
+      for (let y = S.y0; y <= S.y1; y++) { xs.push(y); ys.push((byYS.get((y - META.yearMin) * 100 + s) || 0) / 1000); }
+      return { x:xs, y:ys, name, mode:"lines", stackgroup:"p", line:{width:0.3, color:col}, fillcolor:rgba(col, 0.82),
+               hovertemplate:`<b>${name}</b><br>%{x}: %{y:.2f} Mt<extra></extra>` };
+    });
+    plot("src-area", traces, layout(deepMerge({ yaxis:{title:"Mt CO₂e"}, margin:{l:55, t:10, b:45}, xaxis:{dtick:2} }, sideLegend(190))));
+    plot("src-donut", [{ type:"pie", labels:order.map(s => META.sources[s].name), values:order.map(s => bySrc.get(s) / 1000 / ny), hole:0.52, sort:false,
+      marker:{colors:order.map(s => SOURCE_COLORS[META.sources[s].name] || MUTED), line:{color:"#0d1117", width:2}},
+      textinfo:"percent", textposition:"inside", textfont:{size:10}, hovertemplate:"<b>%{label}</b><br>%{value:.2f} Mt/yr · %{percent}<extra></extra>" }],
+      layout({ showlegend:false, margin:{l:10, r:10, t:10, b:10} }));
+  }
+  drawSourceSankey();
+}
+
+async function drawSourceSankey() {
+  const cube = await prodCube(S.sk1c);
+  const rows = filterEm(cube, { group:"ALL", y0:S.sk1y, y1:S.sk1y });
+  if (!rows.length) return empty("src-sankey");
+  const agg = sumBy(rows, r => `${r[2]}|${META.items[r[1]].g}`, r => r[3]);
+  const srcTot = new Map(), grpTot = new Map();
+  for (const [k, v] of agg) { const [s, g] = k.split("|").map(Number); srcTot.set(s, (srcTot.get(s)||0) + v); grpTot.set(g, (grpTot.get(g)||0) + v); }
+  const ts = new Set(topKeys(srcTot, 12)), tg = new Set(topKeys(grpTot, 10));
+  const sg = new Map(), gc = new Map();
+  for (const [k, v] of agg) {
+    const [s, g] = k.split("|").map(Number); if (!ts.has(s) || !tg.has(g) || v <= 0) continue;
+    const gas = META.sources[s].gas;
+    sg.set(`${s}|${gas}`, (sg.get(`${s}|${gas}`)||0) + v); gc.set(`${gas}|${g}`, (gc.get(`${gas}|${g}`)||0) + v);
+  }
+  const srcs = [...ts].map(s => META.sources[s].name).sort(), gases = [...new Set([...sg.keys()].map(k => k.split("|")[1]))].sort(),
+        grps = [...tg].map(g => META.groups[g]).sort();
+  const labels = [...srcs, ...gases, ...grps], idx = l => labels.indexOf(l);
+  const colors = [...srcs.map(s => SOURCE_COLORS[s] || MUTED), ...gases.map(g => GAS_COLORS[g] || MUTED), ...grps.map(g => GROUP_COLORS[g] || MUTED)];
+  const L = { source:[], target:[], value:[], color:[] };
+  for (const [k, v] of sg) { const [s, gas] = k.split("|"); const n = META.sources[s].name;
+    L.source.push(idx(n)); L.target.push(srcs.length + gases.indexOf(gas)); L.value.push(v / 1000); L.color.push(rgba(SOURCE_COLORS[n] || MUTED, 0.45)); }
+  for (const [k, v] of gc) { const [gas, g] = k.split("|");
+    L.source.push(srcs.length + gases.indexOf(gas)); L.target.push(idx(META.groups[g])); L.value.push(v / 1000); L.color.push(rgba(GAS_COLORS[gas] || MUTED, 0.45)); }
+  const loc = S.sk1c === "GLOBAL" ? "Global" : cname(S.sk1c);
+  plot("src-sankey", [{ type:"sankey", arrangement:"snap",
+    node:{pad:18, thickness:16, line:{color:BORDER, width:0.5}, label:labels, color:colors, hovertemplate:"<b>%{label}</b><br>%{value:.2f} Mt CO₂e<extra></extra>"},
+    link:{...L, hovertemplate:"<b>%{source.label}</b> → <b>%{target.label}</b><br>%{value:.2f} Mt<extra></extra>"} }],
+    layout({ font:{size:11}, margin:{l:10, r:10, t:30, b:10}, title:{text:`Production · ${loc}, ${S.sk1y} · Mt CO₂e`, font:{size:12, color:MUTED}, x:0.5} }));
+}
+
+// ── Food groups ─────────────────────────────────────────────────────────────
+async function drawFoodGroups() {
+  const cube = await prodCube(S.country), ny = nYears();
+  const rows = filterEm(cube);
+  if (!rows.length) empty("fg-stacked");
+  else {
+    const top = topKeys(sumBy(rows, r => r[1], r => r[3]), 20);
+    const topSet = new Set(top), sub = rows.filter(r => topSet.has(r[1]));
+    const itemTot = sumBy(sub, r => r[1], r => r[3]);
+    const yItems = top.slice().sort((a, b) => itemTot.get(a) - itemTot.get(b));
+    const cell = sumBy(sub, r => r[1] * 100 + r[2], r => r[3]);
+    const order = topKeys(sumBy(sub, r => r[2], r => r[3]), 99);
+    plot("fg-stacked", order.map(s => { const n = META.sources[s].name; return { type:"bar", orientation:"h", name:n, marker:{color:SOURCE_COLORS[n] || MUTED},
+      y:yItems.map(i => META.items[i].name), x:yItems.map(i => (cell.get(i * 100 + s) || 0) / 1000 / ny),
+      hovertemplate:`<b>%{y}</b><br>${n}: %{x:.2f} Mt/yr<extra></extra>` }; }),
+      layout(deepMerge({ barmode:"stack", xaxis:{title:"Mt CO₂e / yr"}, yaxis:{tickfont:{size:9}, automargin:true}, margin:{l:10, t:10, b:45} }, sideLegend(180))));
+  }
+  // Intensity: emissions / production, both summed over the window. Ignores the group filter.
+  const irows = filterEm(cube, { group:"ALL" });
+  const a = S.y0 - META.yearMin, b = S.y1 - META.yearMin;
+  const prodT = sumBy(cube.pt.filter(r => r[0] >= a && r[0] <= b), r => r[1], r => r[2]);
+  const em = sumBy(irows, r => r[1], r => r[3]);
+  const inten = new Map();
+  for (const [i, v] of em) { const p = prodT.get(i); if (p && p >= 1e3) inten.set(i, v * 1000 / p); }
+  const top = topKeys(inten, 20).reverse();
+  if (!top.length) return empty("fg-intensity");
+  const topSet = new Set(top), sub = irows.filter(r => topSet.has(r[1]));
+  const cell = sumBy(sub, r => r[1] * 100 + r[2], r => r[3] * 1000 / prodT.get(r[1]));
+  const order = topKeys(sumBy(sub, r => r[2], r => r[3] * 1000 / prodT.get(r[1])), 99);
+  plot("fg-intensity", order.slice().reverse().map(s => { const n = META.sources[s].name; return { type:"bar", orientation:"h", name:n, marker:{color:SOURCE_COLORS[n] || MUTED},
+    y:top.map(i => META.items[i].name), x:top.map(i => cell.get(i * 100 + s) || 0),
+    hovertemplate:`<b>%{y}</b><br>${n}: %{x:.3f} kg CO₂e/kg<extra></extra>` }; }),
+    layout(deepMerge({ barmode:"stack", xaxis:{title:"kg CO₂e / kg food"}, yaxis:{tickfont:{size:9}, automargin:true}, margin:{l:10, t:10, b:50} }, sideLegend(190))));
+}
+
+// ── Trade & shift ───────────────────────────────────────────────────────────
+async function drawTrade() {
+  const [shift, trade] = await Promise.all([fetchJSON("data/shift.json"), fetchJSON("data/trade.json")]);
+  const ny = nYears(), a = S.y0 - META.yearMin, b = S.y1 - META.yearMin;
+  const gi = S.group === "ALL" ? -1 : META.groups.indexOf(S.group), si = S.source === "ALL" ? -1 : META.sIdx[S.source];
+  const keep = r => r[1] >= a && r[1] <= b && (gi < 0 || r[2] === gi) && (si < 0 || r[3] === si);
+  const pm = sumBy(shift.prod.filter(keep), r => r[0], r => r[4] / 1000 / ny);
+  const cm = sumBy(shift.cons.filter(keep), r => r[0], r => r[4] / 1000 / ny);
+  const m = [];
+  for (const [c, p] of pm) { if (!cm.has(c)) continue; const q = cm.get(c); if (p > 0.5 || q > 0.5) m.push({ iso:META.countries[c].iso, s:p - q }); }
+  m.sort((x, y) => x.s - y.s);
+  const both = [...new Map([...m.slice(-15), ...m.slice(0, 15)].map(d => [d.iso, d])).values()].sort((x, y) => x.s - y.s);
+  if (!both.length) empty("trade-shift");
+  else plot("trade-shift", [{ type:"bar", orientation:"h", x:both.map(d => d.s), y:both.map(d => d.iso), customdata:both.map(d => cname(d.iso)),
+    marker:{color:both.map(d => d.s >= 0 ? PROD_C : CONS_C)}, hovertemplate:"<b>%{customdata}</b><br>Shift: %{x:+.2f} Mt CO₂e/yr<extra></extra>" }],
+    layout({ xaxis:{title:"Mt CO₂e / yr (production − consumption)", zerolinecolor:MUTED}, yaxis:{tickfont:{size:10}, automargin:true}, margin:{l:10, r:15, t:10, b:50} }));
+
+  // Bilateral row = [producer, consumer, item, yearIdx, kt]
+  const ci = S.sk2c === "GLOBAL" ? -1 : META.cIdx[S.sk2c];
+  const t = trade.filter(r => r[3] >= a && r[3] <= b && (ci < 0 || r[1] === ci));
+  if (!t.length) return empty("trade-sankey", "No bilateral data for this selection");
+  const agg = sumBy(t, r => `${r[0]}|${r[2]}|${r[1]}`, r => r[4] / 1000 / ny);
+  const tot = (pos) => { const mm = new Map(); for (const [k, v] of agg) { const p = k.split("|")[pos]; mm.set(p, (mm.get(p)||0) + v); } return mm; };
+  const tc = new Set(topKeys(tot(1), S.topn)), tp = new Set(topKeys(tot(0), 12)), tcons = new Set(topKeys(tot(2), 12));
+  const pc = new Map(), cc = new Map();
+  for (const [k, v] of agg) {
+    const [p, it, c] = k.split("|"); if (!tc.has(it) || !tp.has(p) || !tcons.has(c) || v <= 0) continue;
+    pc.set(`${p}|${it}`, (pc.get(`${p}|${it}`)||0) + v); cc.set(`${it}|${c}`, (cc.get(`${it}|${c}`)||0) + v);
+  }
+  if (!pc.size) return empty("trade-sankey", "No links to render for this selection");
+  const iso = c => META.countries[c].iso;
+  const prods = [...new Set([...pc.keys()].map(k => k.split("|")[0]))].sort((x, y) => iso(x).localeCompare(iso(y)));
+  const comms = [...new Set([...pc.keys()].map(k => k.split("|")[1]))].sort((x, y) => META.items[x].name.localeCompare(META.items[y].name));
+  const conss = [...new Set([...cc.keys()].map(k => k.split("|")[1]))].sort((x, y) => iso(x).localeCompare(iso(y)));
+  const labels = [...prods.map(iso), ...comms.map(i => META.items[i].name), ...conss.map(iso)];
+  const hover = [...prods.map(c => "Producer: " + cname(iso(c))), ...comms.map(i => META.items[i].name), ...conss.map(c => "Consumer: " + cname(iso(c)))];
+  const colors = [...prods.map(() => rgba(PROD_C, 0.85)), ...comms.map((_, i) => rgba(COMM_PAL[i % COMM_PAL.length], 0.85)), ...conss.map(() => rgba(CONS_C, 0.85))];
+  const L = { source:[], target:[], value:[], color:[] };
+  for (const [k, v] of pc) { const [p, it] = k.split("|"); L.source.push(prods.indexOf(p)); L.target.push(prods.length + comms.indexOf(it)); L.value.push(v); L.color.push(rgba(PROD_C, 0.3)); }
+  for (const [k, v] of cc) { const [it, c] = k.split("|"); L.source.push(prods.length + comms.indexOf(it)); L.target.push(prods.length + comms.length + conss.indexOf(c)); L.value.push(v); L.color.push(rgba(CONS_C, 0.3)); }
+  const yr = S.y0 !== S.y1 ? `${S.y0}–${S.y1} avg` : `${S.y0}`;
+  plot("trade-sankey", [{ type:"sankey", arrangement:"snap",
+    node:{pad:15, thickness:18, line:{color:BORDER, width:0.5}, label:labels, customdata:hover, color:colors, hovertemplate:"<b>%{customdata}</b><br>%{value:.2f} Mt CO₂e/yr<extra></extra>"},
+    link:{...L, hovertemplate:"<b>%{source.label}</b> → <b>%{target.label}</b><br>%{value:.2f} Mt CO₂e/yr<extra></extra>"} }],
+    layout({ font:{size:11}, margin:{l:10, r:10, t:32, b:10},
+      title:{text:`Embodied emissions · ${S.sk2c === "GLOBAL" ? "global top flows" : "consumer: " + cname(S.sk2c)} · ${yr} · Mt CO₂e/yr`, font:{size:12, color:MUTED}, x:0.5} }));
+}
+
+// ── Wiring ──────────────────────────────────────────────────────────────────
+const DRAW = { sources:drawSources, foodgroups:drawFoodGroups, trade:drawTrade };
+async function redraw() {
+  try {
+    // KPI always reflects the shared filters, whichever tab is open
+    if (S.tab !== "sources") { const rows = filterEm(await prodCube(S.country)); $("kpi").textContent = fmtMt(rows.reduce((s, r) => s + r[3], 0) / 1000 / nYears()); $("kpisub").textContent = `annual avg · ${S.y0}–${S.y1}`; }
+    await DRAW[S.tab]();
+  } catch (e) { console.error(e); }
+}
+function fill(sel, opts, val) { sel.innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join(""); sel.value = val; }
+function syncRange() {
+  const lo = Math.min(+$("y0").value, +$("y1").value), hi = Math.max(+$("y0").value, +$("y1").value);
+  S.y0 = lo; S.y1 = hi; $("y0lab").textContent = lo; $("y1lab").textContent = hi;
+  const span = META.yearMax - META.yearMin || 1;
+  $("yfill").style.left = `${(lo - META.yearMin) / span * 100}%`; $("yfill").style.width = `${(hi - lo) / span * 100}%`;
+}
+
+(async function init() {
+  META = await fetchJSON("data/meta.json");
+  META.sIdx = Object.fromEntries(META.sources.map((s, i) => [s.name, i]));
+  META.cIdx = Object.fromEntries(META.countries.map((c, i) => [c.iso, i]));
+  S.y0 = S.sk1y = META.yearMin; S.y1 = S.sk1y = META.yearMax;
+  $("subtitle").textContent = `Production-based · ${META.yearMin}–${META.yearMax} · annual averages · AR5 GWP100 · ${META.sources.length} sources · ${META.prodCountries.length} countries`;
+  $("vintage").textContent = META.dataVintage;
+  $("foot").textContent = `Data vintage ${META.dataVintage} · page built ${META.built} · window ${META.yearMin}–${META.yearMax} (${META.years.length} yrs)`;
+  for (const id of ["y0", "y1"]) { const el = $(id); el.min = META.yearMin; el.max = META.yearMax; el.step = 1; }
+  $("y0").value = META.yearMin; $("y1").value = META.yearMax; syncRange();
+  const countryOpts = [["GLOBAL", "Global"], ...META.prodCountries.map(c => [c, cname(c)]).sort((x, y) => x[1].localeCompare(y[1]))];
+  fill($("country"), countryOpts, "GLOBAL"); fill($("sk1-country"), countryOpts, "GLOBAL");
+  fill($("group"), [["ALL", "All groups"], ...META.groups.map(g => [g, g])], "ALL");
+  fill($("source"), [["ALL", "All sources"], ...META.sources.map(s => [s.name, s.name])], "ALL");
+  fill($("sk1-year"), META.years.slice().reverse().map(y => [y, y]), META.yearMax);
+  fill($("sk2-country"), [["GLOBAL", "Global top flows"], ...META.tradeConsumers.map(c => [c, cname(c)]).sort((x, y) => x[1].localeCompare(y[1]))], "GLOBAL");
+
+  let t;
+  const debounced = () => { clearTimeout(t); t = setTimeout(redraw, 120); };
+  for (const id of ["y0", "y1"]) $(id).addEventListener("input", () => { syncRange(); debounced(); });
+  $("country").onchange = e => { S.country = e.target.value; redraw(); };
+  $("group").onchange = e => { S.group = e.target.value; redraw(); };
+  $("source").onchange = e => { S.source = e.target.value; redraw(); };
+  $("sk1-country").onchange = e => { S.sk1c = e.target.value; drawSourceSankey(); };
+  $("sk1-year").onchange = e => { S.sk1y = +e.target.value; drawSourceSankey(); };
+  $("sk2-country").onchange = e => { S.sk2c = e.target.value; drawTrade(); };
+  $("sk2-topn").oninput = e => { S.topn = +e.target.value; $("topn-lab").textContent = S.topn; clearTimeout(t); t = setTimeout(drawTrade, 120); };
+  document.querySelectorAll(".tabs button").forEach(btn => btn.onclick = () => {
+    S.tab = btn.dataset.tab;
+    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b === btn));
+    for (const k of Object.keys(DRAW)) $(`tab-${k}`).hidden = k !== S.tab;
+    redraw();
+  });
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(redraw, 250); });
+  redraw();
+})();
+</script>
+</body>
+</html>
